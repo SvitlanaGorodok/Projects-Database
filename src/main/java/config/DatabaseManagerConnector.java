@@ -19,6 +19,11 @@ public class DatabaseManagerConnector {
         this.properties = new Properties();
         this.properties.setProperty("user", username);
         this.properties.setProperty("password", password);
+        try {
+            Class.forName("org.postgresql.Driver");
+        } catch (ClassNotFoundException ex) {
+            throw new RuntimeException("Error loading postgres driver", ex);
+        }
     }
 
     public Connection getConnection() throws SQLException {

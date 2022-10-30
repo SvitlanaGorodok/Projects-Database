@@ -6,6 +6,8 @@ import entities.dto.DeveloperDto;
 import service.converter.DeveloperConverter;
 
 import java.sql.*;
+import java.util.HashSet;
+import java.util.Set;
 
 public class DeveloperService {
     DeveloperConverter developerConverter = new DeveloperConverter();
@@ -15,19 +17,8 @@ public class DeveloperService {
             "salary = ? WHERE id = ?;";
     private static final String DELETE = "DELETE FROM public.developers WHERE id = ?;";
     private static final String FIND_BY_ID = "SELECT id, first_name, last_name, age, salary FROM public.developers WHERE id = ?;";
-    private static final String SELECT_BY_PROJECT = "SELECT developers.id, developers.first_name, developers.last_name, " +
-            "developers.age, developers.salary " +
-            "FROM developers JOIN developers_projects ON developers_projects.developer_id = developers.id " +
-            "WHERE developers_projects.project_id = ?;";
+    private static final String FIND_BY_NAME = "SELECT id, first_name, last_name, age, salary FROM public.developers WHERE first_name like ?;";
     private static final String SELECT_ALL = "SELECT id, first_name, last_name, age, salary FROM developers";
-    private static final String SELECT_BY_SKILL_LEVEL = "SELECT developers.id, developers.first_name, developers.last_name, " +
-            "developers.age, developers.salary, skills.area " +
-            "FROM developers JOIN developers_skills ON developers_skills.developer_id = developers.id " +
-            "JOIN skills ON skills.id = developers_skills.skill_id WHERE skills.level like ?;";
-    private static final String SELECT_BY_SKILL_AREA = "SELECT developers.id, developers.first_name, developers.last_name, " +
-            "developers.age, developers.salary, skills.area " +
-            "FROM developers JOIN developers_skills ON developers_skills.developer_id = developers.id " +
-            "JOIN skills ON skills.id = developers_skills.skill_id WHERE skills.area like ?;";
     public DeveloperService(DatabaseManagerConnector manager) {
         this.manager = manager;
     }
@@ -42,7 +33,6 @@ public class DeveloperService {
             statement.setInt(4, entity.getSalary());
             statement.execute();
             entity.setId(getGeneratedKey(statement.getGeneratedKeys()));
-            System.out.println("Developer successfully created!");
         } catch (SQLException ex) {
             ex.printStackTrace();
             throw new RuntimeException("Developer not created");
@@ -60,9 +50,7 @@ public class DeveloperService {
             statement.setInt(4, entity.getSalary());
             statement.setInt(5, entity.getId());
             if (statement.executeUpdate() == 0){
-                System.out.println("Developer not updated!");
-            } else {
-                System.out.println("Developer successfully updated!");
+                return null;
             }
         } catch (SQLException ex) {
             ex.printStackTrace();
@@ -75,11 +63,7 @@ public class DeveloperService {
         try (Connection connection = manager.getConnection();
              PreparedStatement statement = connection.prepareStatement(DELETE)){
             statement.setInt(1, developerId);
-            if (statement.executeUpdate() == 0){
-                System.out.println("Developer not deleted!");
-            } else {
-                System.out.println("Developer successfully deleted!");
-            }
+            statement.executeUpdate();
         } catch (SQLException ex) {
             ex.printStackTrace();
             throw new RuntimeException("Developer not deleted!");
@@ -93,17 +77,12 @@ public class DeveloperService {
              PreparedStatement statement = connection.prepareStatement(FIND_BY_ID)){
             statement.setInt(1, id);
             result = statement.executeQuery();
-            if (!result.isBeforeFirst()){
-                System.out.println("Developer not found!");
-            } else {
                 while (result.next()) {
                     entity.setId(result.getInt("id"));
                     entity.setFirstName(result.getString("first_name"));
                     entity.setLastName(result.getString("last_name"));
                     entity.setAge(result.getInt("age"));
                     entity.setSalary(result.getInt("salary"));
-                    System.out.println(developerConverter.convertToDto(entity).toString());
-                }
             }
         } catch (SQLException ex) {
             ex.printStackTrace();
@@ -111,106 +90,50 @@ public class DeveloperService {
         }
         return developerConverter.convertToDto(entity);
     }
-    public void selectByProject(Integer projectId){
+    public Set<DeveloperDto> findByName(String name){
         ResultSet result;
+        Set<DeveloperDto> developers = new HashSet<>();
         try (Connection connection = manager.getConnection();
-             PreparedStatement statement = connection.prepareStatement(SELECT_BY_PROJECT)){
-            statement.setInt(1, projectId);
+             PreparedStatement statement = connection.prepareStatement(FIND_BY_NAME)){
+            statement.setString(1, "%" + name +"%");
             result = statement.executeQuery();
-            if (!result.isBeforeFirst()){
-                System.out.println("Project not found!");
-            } else {
-                System.out.println("Developers: ");
-                System.out.println("Id | Name | LastName | Age | Salary ");
-                while (result.next()) {
-                    System.out.print(result.getInt(1) + " | ");
-                    System.out.print(result.getString(2) + "| ");
-                    System.out.print(result.getString(3) + "| ");
-                    System.out.print(result.getInt(4) + "| ");
-                    System.out.print(result.getInt(5) + "\n");
-                }
+            while (result.next()) {
+                DeveloperDto developer = new DeveloperDto();
+                developer.setId(result.getInt(1));
+                developer.setFirstName(result.getString(2));
+                developer.setLastName(result.getString(3));
+                developer.setAge(result.getInt(4));
+                developer.setSalary(result.getInt(5));
+                developers.add(developer);
             }
         } catch (SQLException ex) {
             ex.printStackTrace();
-            throw new RuntimeException("Project not found!");
+            throw new RuntimeException("No developers found!");
         }
+        return developers;
     }
 
-    public void selectAll(){
+    public Set<DeveloperDto> selectAll(){
         ResultSet result;
+        Set<DeveloperDto> developers = new HashSet<>();
         try (Connection connection = manager.getConnection();
              PreparedStatement statement = connection.prepareStatement(SELECT_ALL)){
             result = statement.executeQuery();
-            if (!result.isBeforeFirst()){
-                System.out.println("No developers found!");
-            } else {
-                System.out.println("Developers: ");
-                System.out.println("Id | Name | LastName | Age | Salary ");
                 while (result.next()) {
-                    System.out.print(result.getInt(1) + " | ");
-                    System.out.print(result.getString(2) + "| ");
-                    System.out.print(result.getString(3) + "| ");
-                    System.out.print(result.getInt(4) + "| ");
-                    System.out.print(result.getInt(5) + "\n");
-                }
+                    DeveloperDto developer = new DeveloperDto();
+                    developer.setId(result.getInt(1));
+                    developer.setFirstName(result.getString(2));
+                    developer.setLastName(result.getString(3));
+                    developer.setAge(result.getInt(4));
+                    developer.setSalary(result.getInt(5));
+                    developers.add(developer);
             }
         } catch (SQLException ex) {
             ex.printStackTrace();
             throw new RuntimeException("No developers found!");
         }
+        return developers;
     }
-    public void selectBySkillLevel(String skillLevel){
-        ResultSet result;
-        try (Connection connection = manager.getConnection();
-             PreparedStatement statement = connection.prepareStatement(SELECT_BY_SKILL_LEVEL)){
-            statement.setString(1, skillLevel);
-            result = statement.executeQuery();
-            if (!result.isBeforeFirst()){
-                System.out.println("No developers found!");
-            } else {
-                System.out.println("Developers: ");
-                System.out.println("Id | Name | LastName | Age | Salary | Area");
-                while (result.next()) {
-                    System.out.print(result.getInt(1) + " | ");
-                    System.out.print(result.getString(2) + "| ");
-                    System.out.print(result.getString(3) + "| ");
-                    System.out.print(result.getInt(4) + "| ");
-                    System.out.print(result.getInt(5) + "| ");
-                    System.out.print(result.getString(6) + "\n");
-                }
-            }
-        } catch (SQLException ex) {
-            ex.printStackTrace();
-            throw new RuntimeException("No developers found!");
-        }
-    }
-
-    public void selectBySkillArea(String skillArea){
-        ResultSet result;
-        try (Connection connection = manager.getConnection();
-             PreparedStatement statement = connection.prepareStatement(SELECT_BY_SKILL_AREA)){
-            statement.setString(1, skillArea);
-            result = statement.executeQuery();
-            if (!result.isBeforeFirst()){
-                System.out.println("No developers found!");
-            } else {
-                System.out.println("Developers: ");
-                System.out.println("Id | Name | LastName | Age | Salary | Area");
-                while (result.next()) {
-                    System.out.print(result.getInt(1) + " | ");
-                    System.out.print(result.getString(2) + "| ");
-                    System.out.print(result.getString(3) + "| ");
-                    System.out.print(result.getInt(4) + "| ");
-                    System.out.print(result.getInt(5) + "| ");
-                    System.out.print(result.getString(6) + "\n");
-                }
-            }
-        } catch (SQLException ex) {
-            ex.printStackTrace();
-            throw new RuntimeException("No developers found!");
-        }
-    }
-
 
     private Integer getGeneratedKey(ResultSet result){
         Integer key = null;

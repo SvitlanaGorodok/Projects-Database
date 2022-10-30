@@ -6,6 +6,8 @@ import entities.dto.CompanyDto;
 import service.converter.CompanyConverter;
 
 import java.sql.*;
+import java.util.HashSet;
+import java.util.Set;
 
 public class CompanyService {
     CompanyConverter companyConverter = new CompanyConverter();
@@ -14,6 +16,7 @@ public class CompanyService {
     private static final String UPDATE = "UPDATE public.companies SET name = ?, description = ? WHERE id = ?;";
     private static final String DELETE = "DELETE FROM public.companies WHERE id = ?;";
     private static final String FIND_BY_ID = "SELECT id, name, description FROM public.companies WHERE id = ?;";
+    private static final String FIND_BY_NAME = "SELECT id, name, description FROM public.companies WHERE name like ?;";
     private static final String SELECT_ALL = "SELECT id, name, description FROM public.companies";
 
     public CompanyService(DatabaseManagerConnector manager) {
@@ -28,7 +31,6 @@ public class CompanyService {
             statement.setString(2, entity.getDescription());
             statement.execute();
             entity.setId(getGeneratedKey(statement.getGeneratedKeys()));
-            System.out.println("Company successfully created!");
             } catch (SQLException ex) {
             ex.printStackTrace();
             throw new RuntimeException("Company not created");
@@ -44,9 +46,7 @@ public class CompanyService {
             statement.setString(2, entity.getDescription());
             statement.setInt(3, entity.getId());
             if (statement.executeUpdate() == 0){
-                System.out.println("Company not updated!");
-            } else {
-                System.out.println("Company successfully updated!");
+                return null;
             }
         } catch (SQLException ex) {
             ex.printStackTrace();
@@ -59,11 +59,7 @@ public class CompanyService {
         try (Connection connection = manager.getConnection();
              PreparedStatement statement = connection.prepareStatement(DELETE)){
             statement.setInt(1, companyId);
-            if (statement.executeUpdate() == 0){
-                System.out.println("Company not deleted!");
-            } else {
-                System.out.println("Company successfully deleted!");
-            }
+            statement.executeUpdate();
         } catch (SQLException ex) {
             ex.printStackTrace();
             throw new RuntimeException("Company not deleted");
@@ -77,15 +73,10 @@ public class CompanyService {
              PreparedStatement statement = connection.prepareStatement(FIND_BY_ID)){
             statement.setInt(1, id);
             result = statement.executeQuery();
-            if (!result.isBeforeFirst()){
-                System.out.println("Company not found!");
-            } else {
                 while (result.next()) {
                     entity.setId(result.getInt("id"));
                     entity.setName(result.getString("name"));
                     entity.setDescription(result.getString("description"));
-                    System.out.println(companyConverter.convertToDto(entity).toString());
-                }
             }
         } catch (SQLException ex) {
             ex.printStackTrace();
@@ -93,26 +84,44 @@ public class CompanyService {
         }
         return companyConverter.convertToDto(entity);
     }
-    public void selectAll(){
+    public Set<CompanyDto> findByName(String name){
         ResultSet result;
+        Set<CompanyDto> companies = new HashSet<>();
         try (Connection connection = manager.getConnection();
-             PreparedStatement statement = connection.prepareStatement(SELECT_ALL)){
+             PreparedStatement statement = connection.prepareStatement(FIND_BY_NAME)){
+            statement.setString(1, "%" + name + "%");
             result = statement.executeQuery();
-            if (!result.isBeforeFirst()){
-                System.out.println("No company found!");
-            } else {
-                System.out.println("Companies: ");
-                System.out.println("Id | Name | Description ");
-                while (result.next()) {
-                    System.out.print(result.getInt(1) + " | ");
-                    System.out.print(result.getString(2) + "| ");
-                    System.out.print(result.getString(3) + "\n");
-                }
+            while (result.next()) {
+                CompanyDto company = new CompanyDto();
+                company.setId(result.getInt(1));
+                company.setName(result.getString(2));
+                company.setDescription(result.getString(3));
+                companies.add(company);
             }
         } catch (SQLException ex) {
             ex.printStackTrace();
             throw new RuntimeException("No company found!");
         }
+        return companies;
+    }
+    public Set<CompanyDto> selectAll(){
+        ResultSet result;
+        Set<CompanyDto> companies = new HashSet<>();
+        try (Connection connection = manager.getConnection();
+             PreparedStatement statement = connection.prepareStatement(SELECT_ALL)){
+            result = statement.executeQuery();
+                while (result.next()) {
+                    CompanyDto company = new CompanyDto();
+                    company.setId(result.getInt(1));
+                    company.setName(result.getString(2));
+                    company.setDescription(result.getString(3));
+                    companies.add(company);
+            }
+        } catch (SQLException ex) {
+            ex.printStackTrace();
+            throw new RuntimeException("No company found!");
+        }
+        return companies;
     }
     private Integer getGeneratedKey(ResultSet result){
         Integer key = null;
