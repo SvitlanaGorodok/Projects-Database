@@ -1,7 +1,6 @@
 package controller.project;
 
-import config.DatabaseManagerConnector;
-import config.PropertiesConfig;
+import config.HibernateProvider;
 import entities.dto.ProjectDto;
 import service.crud.ProjectService;
 
@@ -13,7 +12,6 @@ import javax.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import java.sql.Date;
 import java.util.List;
-import java.util.Properties;
 import java.util.Set;
 
 @WebServlet(urlPatterns = "/project")
@@ -21,12 +19,8 @@ public class ProjectController extends HttpServlet {
     private ProjectService projectService;
 
     @Override
-    public void init() throws ServletException {
-        String dbPassword = System.getenv("dbPassword");
-        String dbUsername = System.getenv("dbusername");
-        PropertiesConfig propertiesConfig = new PropertiesConfig();
-        Properties properties = propertiesConfig.loadProperties("application.properties");
-        DatabaseManagerConnector manager = new DatabaseManagerConnector(properties, dbUsername, dbPassword);
+    public void init() {
+        HibernateProvider manager = new HibernateProvider();
         projectService = new ProjectService(manager);
     }
 
@@ -67,7 +61,7 @@ public class ProjectController extends HttpServlet {
         ProjectDto project;
         Integer projectId = Integer.parseInt(req.getParameter("projectid"));
         project = projectService.findById(projectId);
-        if (project.getId() != null){
+        if (project != null){
             req.setAttribute("projects", List.of(project));
         } else {
             req.setAttribute("msg", "Project not found!");
@@ -76,7 +70,11 @@ public class ProjectController extends HttpServlet {
 
     private void findByName(HttpServletRequest req){
         Set<ProjectDto> projects = projectService.findByName(req.getParameter("projectname"));
-        req.setAttribute("projects", projects);
+        if (projects.isEmpty()){
+            req.setAttribute("msg", "Project not found!");
+        } else {
+            req.setAttribute("projects", projects);
+        }
     }
 
     private void findAll(HttpServletRequest req){
@@ -100,21 +98,23 @@ public class ProjectController extends HttpServlet {
         project.setName(req.getParameter("projectname"));
         project.setDescription(req.getParameter("projectdesc"));
         project.setStartDate(Date.valueOf(req.getParameter("projectstartdt")));
-        if(projectService.update(project) == null){
-            req.setAttribute("msg", "Update failed! Project not found!");
-        } else {
+        if (projectService.findById(project.getId()) != null){
+            projectService.update(project);
             req.setAttribute("msg", "Project successfully updated!");
+        } else {
+            req.setAttribute("msg", "Update failed! Project not found!");
         }
         req.getRequestDispatcher("/WEB-INF/jsp/project/updateProject.jsp").forward(req, resp);
     }
 
     private void delete(HttpServletRequest req, HttpServletResponse resp) throws ServletException, IOException {
         Integer projectId = Integer.parseInt(req.getParameter("projectid"));
-        if(projectService.findById(projectId).getId() == null){
-            req.setAttribute("msg", "Delete failed! Project not found!");
-        } else {
-            projectService.delete(projectId);
+        ProjectDto project = projectService.findById(projectId);
+        if (project != null){
+            projectService.delete(project);
             req.setAttribute("msg", "Project successfully deleted!");
+        } else {
+            req.setAttribute("msg", "Delete failed! Project not found!");
         }
         req.getRequestDispatcher("/WEB-INF/jsp/project/deleteProject.jsp").forward(req, resp);
     }

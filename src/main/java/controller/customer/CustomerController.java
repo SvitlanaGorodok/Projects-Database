@@ -1,7 +1,6 @@
 package controller.customer;
 
-import config.DatabaseManagerConnector;
-import config.PropertiesConfig;
+import config.HibernateProvider;
 import entities.dto.CustomerDto;
 import service.crud.CustomerService;
 
@@ -12,7 +11,6 @@ import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import java.util.List;
-import java.util.Properties;
 import java.util.Set;
 
 @WebServlet(urlPatterns = "/customer")
@@ -20,12 +18,8 @@ public class CustomerController extends HttpServlet {
     private CustomerService customerService;
 
     @Override
-    public void init() throws ServletException {
-        String dbPassword = System.getenv("dbPassword");
-        String dbUsername = System.getenv("dbusername");
-        PropertiesConfig propertiesConfig = new PropertiesConfig();
-        Properties properties = propertiesConfig.loadProperties("application.properties");
-        DatabaseManagerConnector manager = new DatabaseManagerConnector(properties, dbUsername, dbPassword);
+    public void init() {
+        HibernateProvider manager = new HibernateProvider();
         customerService = new CustomerService(manager);
     }
 
@@ -66,7 +60,7 @@ public class CustomerController extends HttpServlet {
         CustomerDto customer;
         Integer customerId = Integer.parseInt(req.getParameter("customerid"));
         customer = customerService.findById(customerId);
-        if (customer.getId() != null){
+        if (customer != null){
             req.setAttribute("customers", List.of(customer));
         } else {
             req.setAttribute("msg", "Customer not found!");
@@ -75,7 +69,11 @@ public class CustomerController extends HttpServlet {
 
     private void findByName(HttpServletRequest req){
         Set<CustomerDto> customers = customerService.findByName(req.getParameter("customername"));
-        req.setAttribute("customers", customers);
+        if (customers.isEmpty()){
+            req.setAttribute("msg", "Customer not found!");
+        } else {
+            req.setAttribute("customers", customers);
+        }
     }
 
     private void findAll(HttpServletRequest req){
@@ -97,21 +95,23 @@ public class CustomerController extends HttpServlet {
         customer.setId(Integer.parseInt(req.getParameter("customerid")));
         customer.setName(req.getParameter("customername"));
         customer.setDescription(req.getParameter("customerdesc"));
-        if(customerService.update(customer) == null){
-            req.setAttribute("msg", "Update failed! Customer not found!");
-        } else {
+        if (customerService.findById(customer.getId()) != null){
+            customerService.update(customer);
             req.setAttribute("msg", "Customer successfully updated!");
+        } else {
+            req.setAttribute("msg", "Update failed! Customer not found!");
         }
         req.getRequestDispatcher("/WEB-INF/jsp/customer/updateCustomer.jsp").forward(req, resp);
     }
 
     private void delete(HttpServletRequest req, HttpServletResponse resp) throws ServletException, IOException {
         Integer customerId = Integer.parseInt(req.getParameter("customerid"));
-        if(customerService.findById(customerId).getId() == null){
-            req.setAttribute("msg", "Delete failed! Customer not found!");
-        } else {
-            customerService.delete(customerId);
+        CustomerDto customer = customerService.findById(customerId);
+        if (customer != null){
+            customerService.delete(customer);
             req.setAttribute("msg", "Customer successfully deleted!");
+        } else {
+            req.setAttribute("msg", "Delete failed! Customer not found!");
         }
         req.getRequestDispatcher("/WEB-INF/jsp/customer/deleteCustomer.jsp").forward(req, resp);
     }

@@ -1,7 +1,6 @@
 package controller.company;
 
-import config.DatabaseManagerConnector;
-import config.PropertiesConfig;
+import config.HibernateProvider;
 import entities.dto.CompanyDto;
 import service.crud.CompanyService;
 
@@ -12,7 +11,6 @@ import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import java.util.List;
-import java.util.Properties;
 import java.util.Set;
 
 @WebServlet(urlPatterns = "/company")
@@ -20,12 +18,8 @@ public class CompanyController extends HttpServlet {
     private CompanyService companyService;
 
     @Override
-    public void init() throws ServletException {
-        String dbPassword = System.getenv("dbPassword");
-        String dbUsername = System.getenv("dbusername");
-        PropertiesConfig propertiesConfig = new PropertiesConfig();
-        Properties properties = propertiesConfig.loadProperties("application.properties");
-        DatabaseManagerConnector manager = new DatabaseManagerConnector(properties, dbUsername, dbPassword);
+    public void init() {
+        HibernateProvider manager = new HibernateProvider();
         companyService = new CompanyService(manager);
     }
 
@@ -66,7 +60,7 @@ public class CompanyController extends HttpServlet {
         CompanyDto company;
         Integer companyId = Integer.parseInt(req.getParameter("companyid"));
         company = companyService.findById(companyId);
-        if (company.getId() != null){
+        if (company != null){
             req.setAttribute("companies", List.of(company));
         } else {
             req.setAttribute("msg", "Company not found!");
@@ -75,7 +69,11 @@ public class CompanyController extends HttpServlet {
 
     private void findByName(HttpServletRequest req){
         Set<CompanyDto> companies = companyService.findByName(req.getParameter("companyname"));
-        req.setAttribute("companies", companies);
+        if (companies.isEmpty()){
+            req.setAttribute("msg", "Company not found!");
+        } else {
+            req.setAttribute("companies", companies);
+        }
     }
 
     private void findAll(HttpServletRequest req){
@@ -97,21 +95,23 @@ public class CompanyController extends HttpServlet {
         company.setId(Integer.parseInt(req.getParameter("companyid")));
         company.setName(req.getParameter("companyname"));
         company.setDescription(req.getParameter("companydesc"));
-        if(companyService.update(company) == null){
-            req.setAttribute("msg", "Update failed! Company not found!");
-        } else {
+        if (companyService.findById(company.getId()) != null){
+            companyService.update(company);
             req.setAttribute("msg", "Company successfully updated!");
+        } else {
+            req.setAttribute("msg", "Update failed! Company not found!");
         }
         req.getRequestDispatcher("/WEB-INF/jsp/company/updateCompany.jsp").forward(req, resp);
     }
 
     private void delete(HttpServletRequest req, HttpServletResponse resp) throws ServletException, IOException {
         Integer companyId = Integer.parseInt(req.getParameter("companyid"));
-        if(companyService.findById(companyId).getId() == null){
-            req.setAttribute("msg", "Delete failed! Company not found!");
-        } else {
-            companyService.delete(companyId);
+        CompanyDto company = companyService.findById(companyId);
+        if (company != null){
+            companyService.delete(company);
             req.setAttribute("msg", "Company successfully deleted!");
+        } else {
+            req.setAttribute("msg", "Delete failed! Company not found!");
         }
         req.getRequestDispatcher("/WEB-INF/jsp/company/deleteCompany.jsp").forward(req, resp);
     }

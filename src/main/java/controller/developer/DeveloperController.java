@@ -1,7 +1,6 @@
 package controller.developer;
 
-import config.DatabaseManagerConnector;
-import config.PropertiesConfig;
+import config.HibernateProvider;
 import entities.dto.DeveloperDto;
 import service.crud.DeveloperService;
 
@@ -12,7 +11,6 @@ import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import java.util.List;
-import java.util.Properties;
 import java.util.Set;
 
 @WebServlet(urlPatterns = "/developer")
@@ -20,12 +18,8 @@ public class DeveloperController extends HttpServlet {
     private DeveloperService developerService;
 
     @Override
-    public void init() throws ServletException {
-        String dbPassword = System.getenv("dbPassword");
-        String dbUsername = System.getenv("dbusername");
-        PropertiesConfig propertiesConfig = new PropertiesConfig();
-        Properties properties = propertiesConfig.loadProperties("application.properties");
-        DatabaseManagerConnector manager = new DatabaseManagerConnector(properties, dbUsername, dbPassword);
+    public void init() {
+        HibernateProvider manager = new HibernateProvider();
         developerService = new DeveloperService(manager);
     }
 
@@ -66,7 +60,7 @@ public class DeveloperController extends HttpServlet {
         DeveloperDto developer;
         Integer developerId = Integer.parseInt(req.getParameter("devid"));
         developer = developerService.findById(developerId);
-        if (developer.getId() != null){
+        if (developer != null){
             req.setAttribute("developers", List.of(developer));
         } else {
             req.setAttribute("msg", "Developer not found!");
@@ -75,7 +69,11 @@ public class DeveloperController extends HttpServlet {
 
     private void findByName(HttpServletRequest req){
         Set<DeveloperDto> developers = developerService.findByName(req.getParameter("devname"));
-        req.setAttribute("developers", developers);
+        if (developers.isEmpty()){
+            req.setAttribute("msg", "Developer not found!");
+        } else {
+            req.setAttribute("developers", developers);
+        }
     }
 
     private void findAll(HttpServletRequest req){
@@ -101,21 +99,23 @@ public class DeveloperController extends HttpServlet {
         developer.setLastName(req.getParameter("devlastname"));
         developer.setAge(Integer.parseInt(req.getParameter("devage")));
         developer.setSalary(Integer.parseInt(req.getParameter("devsalary")));
-        if(developerService.update(developer) == null){
-            req.setAttribute("msg", "Update failed! Developer not found!");
-        } else {
+        if (developerService.findById(developer.getId()) != null){
+            developerService.update(developer);
             req.setAttribute("msg", "Developer successfully updated!");
+        } else {
+            req.setAttribute("msg", "Update failed! Developer not found!");
         }
         req.getRequestDispatcher("/WEB-INF/jsp/developer/updateDeveloper.jsp").forward(req, resp);
     }
 
     private void delete(HttpServletRequest req, HttpServletResponse resp) throws ServletException, IOException {
         Integer developerId = Integer.parseInt(req.getParameter("devid"));
-        if(developerService.findById(developerId).getId() == null){
-            req.setAttribute("msg", "Delete failed! Developer not found!");
-        } else {
-            developerService.delete(developerId);
+        DeveloperDto developer = developerService.findById(developerId);
+        if (developer != null){
+            developerService.delete(developer);
             req.setAttribute("msg", "Developer successfully deleted!");
+        } else {
+            req.setAttribute("msg", "Delete failed! Developer not found!");
         }
         req.getRequestDispatcher("/WEB-INF/jsp/developer/deleteDeveloper.jsp").forward(req, resp);
     }

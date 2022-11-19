@@ -1,140 +1,98 @@
 package service.crud;
 
-import config.DatabaseManagerConnector;
+import config.HibernateProvider;
 import entities.dao.SkillDao;
 import entities.dto.SkillDto;
+import org.hibernate.Session;
+import org.hibernate.Transaction;
 import service.converter.SkillConverter;
 
-import java.sql.*;
 import java.util.HashSet;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 public class SkillService {
     SkillConverter skillConverter = new SkillConverter();
-    private final DatabaseManagerConnector manager;
-    private static final String INSERT = "INSERT INTO public.skills (area, level) VALUES(?,?);";
-    private static final String UPDATE = "UPDATE public.skills SET area = ?, level = ? WHERE id = ?;";
-    private static final String DELETE = "DELETE FROM public.skills WHERE id = ?;";
-    private static final String FIND_BY_ID = "SELECT id, area, level FROM public.skills WHERE id = ?;";
-    private static final String FIND_BY_NAME = "SELECT id, area, level FROM public.skills WHERE area like ?;";
-    private static final String SELECT_ALL = "SELECT id, area, level FROM public.skills;";
+    private final HibernateProvider manager;
 
-    public SkillService(DatabaseManagerConnector manager) {
+    public SkillService(HibernateProvider manager) {
         this.manager = manager;
     }
 
     public SkillDto create(SkillDto skillDto){
         SkillDao entity = skillConverter.convertToDao(skillDto);
-        try (Connection connection = manager.getConnection();
-             PreparedStatement statement = connection.prepareStatement(INSERT, Statement.RETURN_GENERATED_KEYS)){
-            statement.setString(1, entity.getArea());
-            statement.setString(2, entity.getLevel());
-            statement.execute();
-            entity.setId(getGeneratedKey(statement.getGeneratedKeys()));
-            } catch (SQLException ex) {
-            ex.printStackTrace();
-            throw new RuntimeException("Skill not created");
+        try (final Session session = manager.openSession()) {
+            final Transaction transaction = session.beginTransaction();
+            session.save(entity);
+            transaction.commit();
+        } catch (Exception e) {
+            e.printStackTrace();
         }
         return skillDto;
     }
 
     public SkillDto update(SkillDto skillDto){
         SkillDao entity = skillConverter.convertToDao(skillDto);
-        try (Connection connection = manager.getConnection();
-             PreparedStatement statement = connection.prepareStatement(UPDATE)){
-            statement.setString(1, entity.getArea());
-            statement.setString(2, entity.getLevel());
-            statement.setInt(3, entity.getId());
-            if (statement.executeUpdate() == 0){
-                return null;
-            }
-        } catch (SQLException ex) {
-            ex.printStackTrace();
-            throw new RuntimeException("Skill not updated");
+        try (final Session session = manager.openSession()) {
+            final Transaction transaction = session.beginTransaction();
+            session.update(entity);
+            transaction.commit();
+        } catch (Exception e) {
+            e.printStackTrace();
         }
         return skillDto;
     }
 
-    public void delete(Integer skillId){
-        try (Connection connection = manager.getConnection();
-             PreparedStatement statement = connection.prepareStatement(DELETE)){
-            statement.setInt(1, skillId);
-            statement.executeUpdate();
-        } catch (SQLException ex) {
-            ex.printStackTrace();
-            throw new RuntimeException("Skill not deleted");
+    public void delete(SkillDto skill){
+        SkillDao entity = skillConverter.convertToDao(skill);
+        try (final Session session = manager.openSession()) {
+            final Transaction transaction = session.beginTransaction();
+            session.remove(entity);
+            transaction.commit();
+        } catch (Exception e) {
+            e.printStackTrace();
         }
     }
 
     public SkillDto findById(Integer id){
         SkillDao entity = new SkillDao();
-        ResultSet result;
-        try (Connection connection = manager.getConnection();
-             PreparedStatement statement = connection.prepareStatement(FIND_BY_ID)){
-            statement.setInt(1, id);
-            result = statement.executeQuery();
-                while (result.next()) {
-                    entity.setId(result.getInt("id"));
-                    entity.setArea(result.getString("area"));
-                    entity.setLevel(result.getString("level"));
-            }
-        } catch (SQLException ex) {
-            ex.printStackTrace();
-            throw new RuntimeException("Skill not found");
+        try (final Session session = manager.openSession()) {
+            entity = session.get(SkillDao.class, id);
+        } catch (Exception e) {
+            e.printStackTrace();
         }
-        return skillConverter.convertToDto(entity);
+        if (entity !=null){
+            return skillConverter.convertToDto(entity);
+        }
+        return null;
     }
 
     public Set<SkillDto> findByName(String name){
-        ResultSet result;
         Set<SkillDto> skills = new HashSet<>();
-        try (Connection connection = manager.getConnection();
-             PreparedStatement statement = connection.prepareStatement(FIND_BY_NAME)){
-            statement.setString(1, "%" + name +"%");
-            result = statement.executeQuery();
-            while (result.next()) {
-                SkillDto skill = new SkillDto();
-                skill.setId(result.getInt(1));
-                skill.setArea(result.getString(2));
-                skill.setLevel(result.getString(3));
-                skills.add(skill);
-            }
-        } catch (SQLException ex) {
-            ex.printStackTrace();
-            throw new RuntimeException("No skills found!");
+        try (final Session session = manager.openSession()) {
+            return session.createQuery("FROM SkillDao d WHERE d.area like :name", SkillDao.class)
+                    .setParameter("name", "%" + name + "%")
+                    .getResultList()
+                    .stream()
+                    .map(skillConverter::convertToDto)
+                    .collect(Collectors.toSet());
+        } catch (Exception e) {
+            e.printStackTrace();
         }
         return skills;
     }
     public Set<SkillDto> selectAll(){
-        ResultSet result;
         Set<SkillDto> skills = new HashSet<>();
-        try (Connection connection = manager.getConnection();
-             PreparedStatement statement = connection.prepareStatement(SELECT_ALL)){
-            result = statement.executeQuery();
-                while (result.next()) {
-                    SkillDto skill = new SkillDto();
-                    skill.setId(result.getInt(1));
-                    skill.setArea(result.getString(2));
-                    skill.setLevel(result.getString(3));
-                    skills.add(skill);
-                }
-        } catch (SQLException ex) {
-            ex.printStackTrace();
-            throw new RuntimeException("No skills found!");
+        try (final Session session = manager.openSession()) {
+            return session.createQuery("FROM SkillDao", SkillDao.class)
+                    .getResultList()
+                    .stream()
+                    .map(skillConverter::convertToDto)
+                    .collect(Collectors.toSet());
+        } catch (Exception e) {
+            e.printStackTrace();
         }
         return skills;
     }
-    private Integer getGeneratedKey(ResultSet result){
-        Integer key = null;
-        try{
-            while (result.next()){
-                key = result.getInt(1);
-            }
-        }
-        catch (SQLException ex) {
-            ex.printStackTrace();
-            throw new RuntimeException("Key not found!");
-        }
-        return key;
-    }
+
 }

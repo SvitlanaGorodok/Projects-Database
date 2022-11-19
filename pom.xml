@@ -15,6 +15,7 @@
         <postgresql.version>42.5.0</postgresql.version>
         <javax.servelt.version>4.0.1</javax.servelt.version>
         <jstl.version>1.2</jstl.version>
+        <hibernate.version>5.6.10.Final</hibernate.version>
     </properties>
     <dependencies>
         <dependency>
@@ -32,6 +33,11 @@
             <groupId>jstl</groupId>
             <artifactId>jstl</artifactId>
             <version>${jstl.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>org.hibernate</groupId>
+            <artifactId>hibernate-core</artifactId>
+            <version>${hibernate.version}</version>
         </dependency>
     </dependencies>
 

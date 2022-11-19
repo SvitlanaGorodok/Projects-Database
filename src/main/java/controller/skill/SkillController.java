@@ -1,7 +1,6 @@
 package controller.skill;
 
-import config.DatabaseManagerConnector;
-import config.PropertiesConfig;
+import config.HibernateProvider;
 import entities.dto.SkillDto;
 import service.crud.SkillService;
 
@@ -12,7 +11,6 @@ import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import java.util.List;
-import java.util.Properties;
 import java.util.Set;
 
 @WebServlet(urlPatterns = "/skill")
@@ -20,12 +18,8 @@ public class SkillController extends HttpServlet {
     private SkillService skillService;
 
     @Override
-    public void init() throws ServletException {
-        String dbPassword = System.getenv("dbPassword");
-        String dbUsername = System.getenv("dbusername");
-        PropertiesConfig propertiesConfig = new PropertiesConfig();
-        Properties properties = propertiesConfig.loadProperties("application.properties");
-        DatabaseManagerConnector manager = new DatabaseManagerConnector(properties, dbUsername, dbPassword);
+    public void init() {
+        HibernateProvider manager = new HibernateProvider();
         skillService = new SkillService(manager);
     }
 
@@ -66,7 +60,7 @@ public class SkillController extends HttpServlet {
         SkillDto skill;
         Integer skillId = Integer.parseInt(req.getParameter("skillid"));
         skill = skillService.findById(skillId);
-        if (skill.getId() != null){
+        if (skill != null){
             req.setAttribute("skills", List.of(skill));
         } else {
             req.setAttribute("msg", "Skill not found!");
@@ -75,7 +69,11 @@ public class SkillController extends HttpServlet {
 
     private void findByName(HttpServletRequest req){
         Set<SkillDto> skills = skillService.findByName(req.getParameter("skillarea"));
-        req.setAttribute("skills", skills);
+        if (skills.isEmpty()){
+            req.setAttribute("msg", "Skill not found!");
+        } else {
+            req.setAttribute("skills", skills);
+        }
     }
 
     private void findAll(HttpServletRequest req){
@@ -97,21 +95,23 @@ public class SkillController extends HttpServlet {
         skill.setId(Integer.parseInt(req.getParameter("skillid")));
         skill.setArea(req.getParameter("skillarea"));
         skill.setLevel(req.getParameter("skilllevel"));
-        if(skillService.update(skill) == null){
-            req.setAttribute("msg", "Update failed! Skill not found!");
-        } else {
+        if (skillService.findById(skill.getId()) != null){
+            skillService.update(skill);
             req.setAttribute("msg", "Skill successfully updated!");
+        } else {
+            req.setAttribute("msg", "Update failed! Skill not found!");
         }
         req.getRequestDispatcher("/WEB-INF/jsp/skill/updateSkill.jsp").forward(req, resp);
     }
 
     private void delete(HttpServletRequest req, HttpServletResponse resp) throws ServletException, IOException {
         Integer skillId = Integer.parseInt(req.getParameter("skillid"));
-        if(skillService.findById(skillId).getId() == null){
-            req.setAttribute("msg", "Delete failed! Skill not found!");
-        } else {
-            skillService.delete(skillId);
+        SkillDto skill = skillService.findById(skillId);
+        if (skill != null){
+            skillService.delete(skill);
             req.setAttribute("msg", "Skill successfully deleted!");
+        } else {
+            req.setAttribute("msg", "Delete failed! Skill not found!");
         }
         req.getRequestDispatcher("/WEB-INF/jsp/skill/deleteSkill.jsp").forward(req, resp);
     }
